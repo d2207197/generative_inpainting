@@ -1,13 +1,12 @@
-import os
 import glob
-import socket
 import logging
+import os
+import socket
+import sys
 
-import tensorflow as tf
 import neuralgym as ng
-
+import tensorflow as tf
 from inpaint_model import InpaintCAModel
-
 
 logger = logging.getLogger()
 
@@ -30,7 +29,12 @@ def multigpu_graph_def(model, data, config, gpu_id=0, loss_type='g'):
 
 
 if __name__ == "__main__":
-    config = ng.Config('inpaint.yml')
+    if len(sys.argv) > 1:
+        yml_path = sys.argv[1]
+    else:
+        yml_path = 'inpaint.yml'
+
+    config = ng.Config(yml_path)
     if config.GPU_ID != -1:
         ng.set_gpus(config.GPU_ID)
     else:
@@ -65,7 +69,7 @@ if __name__ == "__main__":
     g_optimizer = d_optimizer
     # gradient processor
     if config.GRADIENT_CLIP:
-        gradient_processor = lambda grad_var: (
+        def gradient_processor(grad_var): return (
             tf.clip_by_average_norm(grad_var[0], config.GRADIENT_CLIP_VALUE),
             grad_var[1])
     else:
@@ -74,7 +78,7 @@ if __name__ == "__main__":
     log_prefix = 'model_logs/' + '_'.join([
         ng.date_uid(), socket.gethostname(), config.DATASET,
         'MASKED' if config.GAN_WITH_MASK else 'NORMAL',
-        config.GAN,config.LOG_DIR])
+        config.GAN, config.LOG_DIR])
     # train discriminator with secondary trainer, should initialize before
     # primary trainer.
     discriminator_training_callback = ng.callbacks.SecondaryTrainer(
@@ -104,9 +108,12 @@ if __name__ == "__main__":
         trainer.add_callbacks(discriminator_training_callback)
     trainer.add_callbacks([
         ng.callbacks.WeightsViewer(),
-        ng.callbacks.ModelRestorer(trainer.context['saver'], dump_prefix='model_logs/'+config.MODEL_RESTORE+'/snap', optimistic=True),
-        ng.callbacks.ModelSaver(config.TRAIN_SPE, trainer.context['saver'], log_prefix+'/snap'),
-        ng.callbacks.SummaryWriter((config.VAL_PSTEPS//1), trainer.context['summary_writer'], tf.summary.merge_all()),
+        ng.callbacks.ModelRestorer(
+            trainer.context['saver'], dump_prefix='model_logs/'+config.MODEL_RESTORE+'/snap', optimistic=True),
+        ng.callbacks.ModelSaver(
+            config.TRAIN_SPE, trainer.context['saver'], log_prefix+'/snap'),
+        ng.callbacks.SummaryWriter(
+            (config.VAL_PSTEPS//1), trainer.context['summary_writer'], tf.summary.merge_all()),
     ])
     # launch training
     trainer.train()
