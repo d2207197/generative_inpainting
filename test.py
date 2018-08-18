@@ -17,14 +17,14 @@ parser.add_argument('--output', default='output.png', type=str,
 parser.add_argument('--checkpoint_dir', default='', type=str,
                     help='The directory of tensorflow checkpoint.')
 
-
 if __name__ == "__main__":
     # ng.get_gpus(0)
     args = parser.parse_args()
-
-    model = InpaintCAModel()
+    print(type(args.image), args.image)
     image = cv2.imread(args.image)
     mask = cv2.imread(args.mask)
+
+    model = InpaintCAModel()
 
     assert image.shape == mask.shape
 
