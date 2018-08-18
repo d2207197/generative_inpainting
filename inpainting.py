@@ -5,19 +5,42 @@ from inpaint_model import InpaintCAModel
 
 
 class Inpainting(object):
-    _model_cache = {}
+    _sess_cache = {}
 
     @classmethod
     def from_checkpoint_dir(cls, checkpoint_dir):
-        if checkpoint_dir in cls._model_cache:
-            return cls._model_cache
+        if checkpoint_dir in cls._sess_cache:
+            return cls._sess_cache[checkpoint_dir]
         else:
             model = Inpainting(checkpoint_dir)
-            cls._model_cache[checkpoint_dir] = model
+            cls._sess_cache[checkpoint_dir] = model
             return model
 
     def __init__(self, checkpoint_dir):
-        self.checkpoint_dir = checkpoint_dir
+        model = InpaintCAModel()
+        sess_config = tf.ConfigProto()
+        sess_config.gpu_options.allow_growth = True
+        input_image_ph = tf.placeholder(
+                tf.float32, shape=(1, 256, 512, 3))
+        output = model.build_server_graph(input_image_ph)
+        output = (output + 1.) * 127.5
+        output = tf.reverse(output, [-1])
+        output = tf.saturate_cast(output, tf.uint8)
+        # === END OF BUILD GRAPH ===
+        sess = tf.Session(config=sess_config)
+
+        # load pretrained model
+        vars_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        assign_ops = []
+        for var in vars_list:
+            vname = var.name
+            from_name = vname
+            var_value = tf.contrib.framework.load_variable(checkpoint_dir, from_name)
+            assign_ops.append(tf.assign(var, var_value))
+        sess.run(assign_ops)  
+        self.sess = sess
+        self.graph = output
+        self.placeholder = input_image_ph
 
     @staticmethod
     def gen_mask(img_array):
@@ -31,7 +54,6 @@ class Inpainting(object):
     def predict(self, image):
         # ng.get_gpus(1)
 
-        model = InpaintCAModel()
         mask = self.gen_mask(image)
 
         assert image.shape == mask.shape
@@ -46,25 +68,5 @@ class Inpainting(object):
         mask = np.expand_dims(mask, 0)
         input_image = np.concatenate([image, mask], axis=2)
 
-        sess_config = tf.ConfigProto()
-        sess_config.gpu_options.allow_growth = True
-        with tf.Session(config=sess_config) as sess:
-            input_image = tf.constant(input_image, dtype=tf.float32)
-            output = model.build_server_graph(input_image)
-            output = (output + 1.) * 127.5
-            output = tf.reverse(output, [-1])
-            output = tf.saturate_cast(output, tf.uint8)
-
-            # load pretrained model
-            vars_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-            assign_ops = []
-            for var in vars_list:
-                vname = var.name
-                from_name = vname
-                var_value = tf.contrib.framework.load_variable(
-                    self.checkpoint_dir, from_name)
-                assign_ops.append(tf.assign(var, var_value))
-            sess.run(assign_ops)
-            print('Model loaded.')
-            result = sess.run(output)
-            return result[0][:, :, ::-1]
+        result = self.sess.run(self.graph, feed_dict={self.placeholder: input_image})
+        return result[0][:, :, ::-1]
