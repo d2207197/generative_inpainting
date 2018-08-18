@@ -18,6 +18,7 @@ class Inpainting(object):
 
     def __init__(self, checkpoint_dir):
         self.checkpoint_dir = checkpoint_dir
+        self.model = InpaintCAModel()
 
     @staticmethod
     def gen_mask(img_array):
@@ -29,9 +30,7 @@ class Inpainting(object):
         return mask
 
     def predict(self, image):
-        # ng.get_gpus(1)
 
-        model = InpaintCAModel()
         mask = self.gen_mask(image)
 
         assert image.shape == mask.shape
@@ -50,7 +49,7 @@ class Inpainting(object):
         sess_config.gpu_options.allow_growth = True
         with tf.Session(config=sess_config) as sess:
             input_image = tf.constant(input_image, dtype=tf.float32)
-            output = model.build_server_graph(input_image)
+            output = self.model.build_server_graph(input_image)
             output = (output + 1.) * 127.5
             output = tf.reverse(output, [-1])
             output = tf.saturate_cast(output, tf.uint8)
