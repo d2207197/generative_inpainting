@@ -139,11 +139,9 @@ def inpainting(quiz, debug=True):
         cv2.imwrite(output_p, result[0][:, :, ::-1])
 
 
-    #gen_image = (raw_image * (1 - mask) + mean_color * mask).astype(np.uint8)
-    gen_image = (output).astype(np.uint8) ## need test here
+    gen_image = (result[0][:, :, ::-1]).astype(np.uint8) ## need test here
     gen_image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB)
     ski_io.imsave('temp/gen_image.jpg', gen_image, quality=100)
-    #print(gen_image.shape)
 
     if debug:
         with warnings.catch_warnings():
