@@ -1,12 +1,11 @@
 import argparse
 
-import cv2
 import numpy as np
-import tensorflow as tf
+
+import cv2
 import neuralgym as ng
-
+import tensorflow as tf
 from inpaint_model import InpaintCAModel
-
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--image', default='', type=str,
@@ -19,7 +18,7 @@ parser.add_argument('--checkpoint_dir', default='', type=str,
                     help='The directory of tensorflow checkpoint.')
 
 if __name__ == "__main__":
-    ng.get_gpus(1)
+    # ng.get_gpus(0)
     args = parser.parse_args()
     print(type(args.image), args.image)
     image = cv2.imread(args.image)
@@ -53,7 +52,8 @@ if __name__ == "__main__":
         for var in vars_list:
             vname = var.name
             from_name = vname
-            var_value = tf.contrib.framework.load_variable(args.checkpoint_dir, from_name)
+            var_value = tf.contrib.framework.load_variable(
+                args.checkpoint_dir, from_name)
             assign_ops.append(tf.assign(var, var_value))
         sess.run(assign_ops)
         print('Model loaded.')
