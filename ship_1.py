@@ -1,27 +1,19 @@
-import os
-import numpy as np
 import argparse
-import warnings
-import requests
-from io import BytesIO
 import base64
+import os
+from io import BytesIO
+
 import attr
 import cv2
+import requests
 import skimage.io as ski_io
-import skimage.color as ski_color
-import skimage.morphology as ski_morph
-
-import numpy as np
-import tensorflow as tf
-import neuralgym as ng
-
-
 from inpaint_model import InpaintCAModel
 
 output_p = "examples/output.png"
 checkpoint_dir_p = "model_logs/coffee"
 
 model = InpaintCAModel()
+
 
 @attr.s
 class FoodQuiz:
@@ -47,7 +39,8 @@ def get_image(question_id, img_header=True):
         # Assign image format
         encoded_image = data['image']
         raw_image = ski_io.imread(
-            BytesIO(base64.b64decode(encoded_image[encoded_image.find(',')+1:]))
+            BytesIO(base64.b64decode(
+                encoded_image[encoded_image.find(',')+1:]))
         )
         raw_image = cv2.cvtColor(raw_image, cv2.COLOR_RGB2BGR)
         header = encoded_image[:encoded_image.find(',')]
@@ -57,7 +50,8 @@ def get_image(question_id, img_header=True):
         print('題號：', question_id)
         print('文字描述：', description)
         print('Bounding Box:', bbox)
-        print('影像物件：', type(raw_image), raw_image.dtype, ', 影像大小：', raw_image.shape)
+        print('影像物件：', type(raw_image), raw_image.dtype,
+              ', 影像大小：', raw_image.shape)
 
         quiz = FoodQuiz(question_id, raw_image, bbox, description)
 
@@ -72,97 +66,98 @@ def get_image(question_id, img_header=True):
 
 
 # 使用你的模型，補全影像
-def inpainting(quiz, debug=True):
+# def inpainting(quiz, debug=True):
 
-    print('Step 2: 使用你的模型，補全影像\n')
-    print('...')
-    # Your code may lay here...
-    # ======================
-    #
-    # gen_image = some_black_magic(quiz)
-    #
-    # ======================
+#     print('Step 2: 使用你的模型，補全影像\n')
+#     print('...')
+#     # Your code may lay here...
+#     # ======================
+#     #
+#     # gen_image = some_black_magic(quiz)
+#     #
+#     # ======================
 
-    # Demo: mean-color inpainting
-    raw_image = quiz.raw_image.copy()
-    bbox = quiz.bbox
-    mean_color = quiz.raw_image.mean(axis=(0, 1))  # shape: (3,)
+#     # Demo: mean-color inpainting
+#     raw_image = quiz.raw_image.copy()
+#     bbox = quiz.bbox
+#     mean_color = quiz.raw_image.mean(axis=(0, 1))  # shape: (3,)
 
-    raw_roi = raw_image[bbox['y']:bbox['y']+bbox['h'], bbox['x']:bbox['x']+bbox['w'], :]
+#     raw_roi = raw_image[bbox['y']:bbox['y']+bbox['h'], bbox['x']:bbox['x']+bbox['w'], :]
 
-    mask = np.zeros(raw_image.shape[:2])
-    mask_roi = mask[bbox['y']:bbox['y']+bbox['h'], bbox['x']:bbox['x']+bbox['w']]
+#     mask = np.zeros(raw_image.shape[:2])
+#     mask_roi = mask[bbox['y']:bbox['y']+bbox['h'], bbox['x']:bbox['x']+bbox['w']]
 
-    to_filling = (raw_roi[:, :, 1] == 255) & (raw_roi[:, :, 0] < 10) & (raw_roi[:, :, 2] < 10)
-    mask_roi[to_filling] = 1
+#     to_filling = (raw_roi[:, :, 1] == 255) & (raw_roi[:, :, 0] < 10) & (raw_roi[:, :, 2] < 10)
+#     mask_roi[to_filling] = 1
 
-    mask = ski_morph.dilation(mask, ski_morph.square(7))
-    mask = np.expand_dims(mask, axis=-1)
-
-
-    ## start modify
-    #image = cv2.imread(image_p)
-    image = raw_image
-    mask = image
-    assert image.shape == mask.shape
-
-    h, w, _ = image.shape
-    grid = 8
-    image = image[:h//grid*grid, :w//grid*grid, :]
-    mask = mask[:h//grid*grid, :w//grid*grid, :]
-    print('Shape of image: {}'.format(image.shape))
-
-    image = np.expand_dims(image, 0)
-    mask = np.expand_dims(mask, 0)
-    input_image = np.concatenate([image, mask], axis=2)
-
-    sess_config = tf.ConfigProto()
-    sess_config.gpu_options.allow_growth = True
-    with tf.Session(config=sess_config) as sess:
-        input_image = tf.constant(input_image, dtype=tf.float32)
-        output = model.build_server_graph(input_image)
-        output = (output + 1.) * 127.5
-        output = tf.reverse(output, [-1])
-        output = tf.saturate_cast(output, tf.uint8)
-        # load pretrained model
-        vars_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-        assign_ops = []
-        for var in vars_list:
-            vname = var.name
-            from_name = vname
-            #var_value = tf.contrib.framework.load_variable(args.checkpoint_dir, from_name)
-            var_value = tf.contrib.framework.load_variable(checkpoint_dir_p, from_name)
-            assign_ops.append(tf.assign(var, var_value))
-        sess.run(assign_ops)
-        print('Model loaded.')
-        result = sess.run(output)
-        cv2.imwrite(output_p, result[0][:, :, ::-1])
+#     mask = ski_morph.dilation(mask, ski_morph.square(7))
+#     mask = np.expand_dims(mask, axis=-1)
 
 
-    gen_image = (result[0][:, :, ::-1]).astype(np.uint8) ## need test here
-    gen_image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB)
-    ski_io.imsave('temp/gen_image.jpg', gen_image, quality=100)
+#     ## start modify
+#     #image = cv2.imread(image_p)
+#     image = raw_image
+#     mask = image
+#     assert image.shape == mask.shape
 
-    if debug:
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=UserWarning)
-            os.makedirs('temp', exist_ok=True)
-            ski_io.imsave('temp/raw_image.jpg', raw_image, quality=100)
-            ski_io.imsave('temp/mask.jpg', mask[:, :, 0], quality=100)
-            ski_io.imsave('temp/gen_image.jpg', gen_image, quality=100)
+#     h, w, _ = image.shape
+#     grid = 8
+#     image = image[:h//grid*grid, :w//grid*grid, :]
+#     mask = mask[:h//grid*grid, :w//grid*grid, :]
+#     print('Shape of image: {}'.format(image.shape))
 
-    print('=====================')
+#     image = np.expand_dims(image, 0)
+#     mask = np.expand_dims(mask, 0)
+#     input_image = np.concatenate([image, mask], axis=2)
 
-    return gen_image
+#     sess_config = tf.ConfigProto()
+#     sess_config.gpu_options.allow_growth = True
+#     with tf.Session(config=sess_config) as sess:
+#         input_image = tf.constant(input_image, dtype=tf.float32)
+#         output = model.build_server_graph(input_image)
+#         output = (output + 1.) * 127.5
+#         output = tf.reverse(output, [-1])
+#         output = tf.saturate_cast(output, tf.uint8)
+#         # load pretrained model
+#         vars_list = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+#         assign_ops = []
+#         for var in vars_list:
+#             vname = var.name
+#             from_name = vname
+#             #var_value = tf.contrib.framework.load_variable(args.checkpoint_dir, from_name)
+#             var_value = tf.contrib.framework.load_variable(checkpoint_dir_p, from_name)
+#             assign_ops.append(tf.assign(var, var_value))
+#         sess.run(assign_ops)
+#         print('Model loaded.')
+#         result = sess.run(output)
+#         cv2.imwrite(output_p, result[0][:, :, ::-1])
+
+
+#     gen_image = (result[0][:, :, ::-1]).astype(np.uint8) ## need test here
+#     gen_image = cv2.cvtColor(raw_image, cv2.COLOR_BGR2RGB)
+#     ski_io.imsave('temp/gen_image.jpg', gen_image, quality=100)
+
+#     if debug:
+#         with warnings.catch_warnings():
+#             warnings.simplefilter('ignore', category=UserWarning)
+#             os.makedirs('temp', exist_ok=True)
+#             ski_io.imsave('temp/raw_image.jpg', raw_image, quality=100)
+#             ski_io.imsave('temp/mask.jpg', mask[:, :, 0], quality=100)
+#             ski_io.imsave('temp/gen_image.jpg', gen_image, quality=100)
+
+#     print('=====================')
+
+#     return gen_image
 
 
 # 上傳答案到 PIXNET
-def submit_image(image, question_id):
+def submit_image(image, question_id, key=None):
     print('Step 3: 上傳答案到 PIXNET\n')
 
     endpoint = 'http://pixnethackathon2018-competition.events.pixnet.net/api/answer'
 
-    key = os.environ.get('PIXNET_FOODAI_KEY')
+    if key is None:
+        key = os.environ.get('PIXNET_FOODAI_KEY')
 
     # Assign image format
     image_format = 'jpeg'
@@ -171,7 +166,8 @@ def submit_image(image, question_id):
         f.seek(0)
         data = f.read()
         encoded_image = base64.b64encode(data)
-    image_b64string = 'data:image/{};base64,'.format(image_format) + encoded_image.decode('utf-8')
+    image_b64string = 'data:image/{};base64,'.format(
+        image_format) + encoded_image.decode('utf-8')
 
     payload = dict(question_id=question_id,
                    key=key,
@@ -179,6 +175,7 @@ def submit_image(image, question_id):
     response = requests.post(endpoint, json=payload)
     try:
         rdata = response.json()
+        return rdata
         if response.status_code == 200 and not rdata['error']:
             print('上傳成功')
         print('題號：', question_id)
@@ -212,7 +209,8 @@ parser = argparse.ArgumentParser(
     競賽平台位置：http://pixnethackathon2018-competition.events.pixnet.net/''',
     formatter_class=argparse.RawTextHelpFormatter
 )
-parser.add_argument('--qid', metavar='qid', nargs='?', type=int, default=1, help='題目編號(int)')
+parser.add_argument('--qid', metavar='qid', nargs='?',
+                    type=int, default=1, help='題目編號(int)')
 if __name__ == '__main__':
     args = parser.parse_args()
     quiz = get_image(args.qid)
