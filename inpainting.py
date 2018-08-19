@@ -133,7 +133,7 @@ class Inpainting(object):
         sess_config.gpu_options.allow_growth = True
         input_image_ph = tf.placeholder(
             tf.float32, shape=(1, 256, 512, 3))
-        output = model.build_server_graph(input_image_ph)
+        output = model.build_server_graph(input_image_ph, reuse=tf.AUTO_REUSE)
         output = (output + 1.) * 127.5
         output = tf.reverse(output, [-1])
         output = tf.saturate_cast(output, tf.uint8)
@@ -149,10 +149,11 @@ class Inpainting(object):
             var_value = tf.contrib.framework.load_variable(
                 checkpoint_dir, from_name)
             assign_ops.append(tf.assign(var, var_value))
-        sess.run(assign_ops)
+        #sess.run(assign_ops)
         self.sess = sess
         self.graph = output
         self.placeholder = input_image_ph
+        self.assign_ops = assign_ops
 
     @staticmethod
     def gen_mask(img_array):
@@ -176,7 +177,8 @@ class Inpainting(object):
         image = np.expand_dims(image, 0)
         mask = np.expand_dims(mask, 0)
         input_image = np.concatenate([image, mask], axis=2)
-
+        
+        self.sess.run(self.assign_ops)
         result = self.sess.run(self.graph,
                                feed_dict={self.placeholder: input_image})
         return result[0][:, :, ::-1]
