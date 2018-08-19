@@ -3,13 +3,16 @@ import base64
 import os
 from io import BytesIO
 
+import numpy as np
+from carriage import Row, Stream, StreamTable
+
 import attr
 import cv2
-import numpy as np
 import requests
 import skimage.io as ski_io
 import tensorflow as tf
 from inpaint_model import InpaintCAModel
+from IPython.display import display
 from matplotlib import pyplot as plt
 
 output_p = "examples/output.png"
@@ -68,6 +71,14 @@ cat_id_to_cat_map = {
     18: '薯條',
     19: '漢堡',
 }
+
+
+def display_cat_id_map():
+    cat_id_cat_stbl = StreamTable(
+        [Row(cat_id=cat_id, cat=cat)
+         for cat_id, cat in cat_id_to_cat_map.items()])
+    cat_id_cat_stbl.show(len(cat_id_to_cat_map))
+
 
 cat_to_checkpoint_map = {
     '小籠包': 'model_logs/20180816142207530631_instance-1_pixfood20-dumpling_NORMAL_wgan_gp_pixfood20_dumpling',  # noqa: E501
@@ -178,10 +189,10 @@ def get_image(question_id, img_header=True):
     endpoint = 'http://pixnethackathon2018-competition.events.pixnet.net/api/question'  # noqa: E501
     payload = dict(question_id=question_id, img_header=img_header)
     print('Step 1: 從 PIXNET 拿比賽題目\n')
-    response = requests.get(endpoint, params=payload)
+    response = requests.get(endpoint, params=payload).json()
 
     try:
-        data = response.json()['data']
+        data = response['data']
         question_id = data['question_id']
         description = data['desc']
         bbox = data['bounding_area']
@@ -192,7 +203,7 @@ def get_image(question_id, img_header=True):
             BytesIO(base64.b64decode(
                 encoded_image[encoded_image.find(',')+1:]))
         )
-        raw_image = cv2.cvtColor(raw_image, cv2.COLOR_RGB2BGR)
+        # raw_image = cv2.cvtColor(raw_image, cv2.COLOR_RGB2BGR)
         header = encoded_image[:encoded_image.find(',')]
         if 'bmp' not in header:
             raise ValueError('Image should be BMP format')
@@ -207,7 +218,7 @@ def get_image(question_id, img_header=True):
 
     except Exception as err:
         # Catch exceptions here...
-        print(data)
+        print(response)
         raise err
 
     print('=====================')
@@ -252,6 +263,33 @@ def submit_image(image, question_id, key=None):
         print(rdata)
         raise err
     print('=====================')
+
+
+class Secret:
+    pass
+
+
+def answer_question(question_id):
+    quiz = get_image(question_id)
+    print('題號：', quiz.question_id)
+    print('文字描述：', quiz.description)
+    print('Bounding Box:', quiz.bbox)
+    print('影像物件：', type(quiz.raw_image), quiz.raw_image.dtype,
+          ', 影像大小：', quiz.raw_image.shape)
+    display_image_RGB(quiz.raw_image)
+
+    raw_image = convert_RGB_to_BGR(quiz.raw_image)
+
+    display_cat_id_map()
+    cat_id = int(input())
+
+    model = Inpainting.from_cat_id(cat_id)
+
+    result_image = model.predict(raw_image)
+    result_image = convert_BGR_to_RGB(result_image)
+    display_image_RGB(result_image)
+
+    return submit_image(result_image, question_id)
 
 
 if __name__ == '__main__':
