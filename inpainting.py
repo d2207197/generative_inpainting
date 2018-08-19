@@ -1,19 +1,23 @@
 
 import base64
+import logging
 import os
 import sys
 from io import BytesIO
 
-import numpy as np
-from carriage import Row, StreamTable
-
 import attr
 import cv2
+import numpy as np
 import requests
 import skimage.io as ski_io
 import tensorflow as tf
-from inpaint_model import InpaintCAModel
+from carriage import Row, StreamTable
 from matplotlib import pyplot as plt
+
+from inpaint_model import InpaintCAModel
+from IPython.display import display
+
+logger = logging.getLogger(__name__)
 
 output_p = "examples/output.png"
 checkpoint_dir_p = "model_logs/coffee"
@@ -21,8 +25,8 @@ checkpoint_dir_p = "model_logs/coffee"
 model = InpaintCAModel()
 
 
-def display_image_BRG(image_brg):
-    image_rgb = convert_BGR_to_RGB(image_brg)
+def display_image_BGR(image_bgr):
+    image_rgb = convert_BGR_to_RGB(image_bgr)
     return display_image_RGB(image_rgb)
 
 
@@ -31,14 +35,14 @@ def display_image_RGB(image_rgb):
     return plt.show()
 
 
-def convert_BGR_to_RGB(image_brg):
-    image_rgb = cv2.cvtColor(image_brg, cv2.COLOR_BGR2RGB)
+def convert_BGR_to_RGB(image_bgr):
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     return image_rgb
 
 
 def convert_RGB_to_BGR(image_rgb):
-    image_brg = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-    return image_brg
+    image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+    return image_bgr
 
 
 @attr.s
@@ -93,7 +97,7 @@ cat_to_checkpoint_map = {
     '牛肉麵': 'model_logs/20180817172532454644_instance-1_pixfood20-牛肉麵_NORMAL_wgan_gp_pixfood20-牛肉麵',  # noqa: E501
     '生魚片': 'model_logs/20180817172109423433_instance-1_pixfood20-生魚片_NORMAL_wgan_gp_pixfood20-生魚片',  # noqa: E501
     '鬆餅': 'model_logs/20180817172259513799_instance-1_pixfood20-鬆餅_NORMAL_wgan_gp_pixfood20-鬆餅',  # noqa: E501
-    '蛋糕': 'model_logs/20180817172435274069_instance-1_pixfood20-蛋糕_NORMAL_wgan_gp_pixfood20-蛋糕',  # noqa: E501
+    '蛋糕': 'model_logs/20180818120257878036_pixnet-instance1_pixfood20-蛋糕_NORMAL_wgan_gp_pixfood20-蛋糕',  # noqa: E501
     '滷肉飯': 'model_logs/20180817171517861902_pixnet-instance1_pixfood20-滷肉飯_NORMAL_wgan_gp_pixfood20-滷肉飯',  # noqa: E501
     '火鍋': 'model_logs/20180817172146342675_pixnet-instance1_pixfood20-火鍋_NORMAL_wgan_gp_pixfood20-火鍋',  # noqa: E501
     '手搖杯': 'model_logs/20180817193428453541_pixnet-instance1_pixfood20-手搖杯_NORMAL_wgan_gp_pixfood20-手搖杯',  # noqa: E501
@@ -149,7 +153,7 @@ class Inpainting(object):
             var_value = tf.contrib.framework.load_variable(
                 checkpoint_dir, from_name)
             assign_ops.append(tf.assign(var, var_value))
-        #sess.run(assign_ops)
+        # sess.run(assign_ops)
         self.sess = sess
         self.graph = output
         self.placeholder = input_image_ph
@@ -177,7 +181,7 @@ class Inpainting(object):
         image = np.expand_dims(image, 0)
         mask = np.expand_dims(mask, 0)
         input_image = np.concatenate([image, mask], axis=2)
-        
+
         self.sess.run(self.assign_ops)
         result = self.sess.run(self.graph,
                                feed_dict={self.placeholder: input_image})
@@ -269,27 +273,39 @@ class Secret:
     pass
 
 
-def answer_question(question_id):
-    quiz = get_image(question_id)
-    print('題號：', quiz.question_id)
-    print('文字描述：', quiz.description)
-    print('Bounding Box:', quiz.bbox)
-    print('影像物件：', type(quiz.raw_image), quiz.raw_image.dtype,
-          ', 影像大小：', quiz.raw_image.shape)
+# def answer_question(question_id):
+def answer_question(raw_image):
+    # quiz = get_image(question_id)
+    # print('題號：', quiz.question_id)
+    # print('文字描述：', quiz.description)
+    # print('Bounding Box:', quiz.bbox)
+    # print('影像物件：', type(quiz.raw_image), quiz.raw_image.dtype,
+    #       ', 影像大小：', quiz.raw_image.shape)
+    quiz = FoodQuiz(3, raw_image, (2, 2), 'blah balh')
     display_image_RGB(quiz.raw_image)
 
     raw_image = convert_RGB_to_BGR(quiz.raw_image)
 
     display_cat_id_map()
+    result_images = {}
+    for i in range(20):
+        try:
+            model = Inpainting.from_cat_id(i)
+            result_images[i] = model.predict(raw_image)
+        except Exception as err:
+            logger.exception(f'cat_id {i} not found')
+            continue
+
+        print(f'{i} {cat_id_to_cat_map[i]}')
+        display_image_BGR(result_images[i])
+
     cat_id = int(input())
 
-    model = Inpainting.from_cat_id(cat_id)
-
-    result_image = model.predict(raw_image)
-    result_image = convert_BGR_to_RGB(result_image)
+    result_image = convert_BGR_to_RGB(result_images[cat_id])
+    display('final choice')
     display_image_RGB(result_image)
 
-    return submit_image(result_image, question_id)
+    # return submit_image(result_image, question_id)
 
 
 if __name__ == '__main__':
