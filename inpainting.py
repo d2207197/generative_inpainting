@@ -16,6 +16,7 @@ from matplotlib import pyplot as plt
 
 from inpaint_model import InpaintCAModel
 from IPython.display import display
+from mobile_net.clf import load_graph, read_tensor_from_image_file, load_labels
 
 logger = logging.getLogger(__name__)
 
@@ -323,6 +324,35 @@ def answer_question(raw_image):
     display_image_RGB(result_image)
 
     # return submit_image(result_image, question_id)
+
+
+def mobile_net_clf(raw_image):
+    model_file = "mobile_net/tf_files/retrained_graph.pb"
+    label_file = "mobile_net/tf_files/retrained_labels.txt"
+    input_name = "import/input"
+    output_name = "import/final_result"
+    top = 5
+    graph = load_graph(model_file)
+
+    input_operation = graph.get_operation_by_name(input_name);
+    output_operation = graph.get_operation_by_name(output_name);
+
+    file_name = 'tmp_image.jpg'
+    cv2.imwrite(file_name, raw_image)
+
+    t = read_tensor_from_image_file(file_name,
+                                    input_height=224,
+                                    input_width=224,
+                                    input_mean=128,
+                                    input_std=128)
+
+    with tf.Session(graph=graph) as sess:
+        results = sess.run(output_operation.outputs[0], {input_operation.outputs[0]: t})
+    results = np.squeeze(results)
+    labels = load_labels(label_file)
+
+    return labels, results
+
 
 
 if __name__ == '__main__':
