@@ -7,6 +7,7 @@ from io import BytesIO
 
 import attr
 import cv2
+import dramatiq
 import numpy as np
 import requests
 import skimage.io as ski_io
@@ -16,6 +17,8 @@ from matplotlib import pyplot as plt
 
 from inpaint_model import InpaintCAModel
 from IPython.display import display
+from models import (m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10, m11, m12, m13,
+                    m14, m15, m16, m17, m18, m19)
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +276,12 @@ class Secret:
     pass
 
 
+model_list = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10,
+              m11, m12, m13, m14, m15, m16, m17, m18, m19]
+
 # def answer_question(question_id):
+
+
 def answer_question(raw_image):
     # quiz = get_image(question_id)
     # print('題號：', quiz.question_id)
@@ -286,15 +294,22 @@ def answer_question(raw_image):
 
     raw_image = convert_RGB_to_BGR(quiz.raw_image)
 
-    display_cat_id_map()
     result_images = {}
-    for i in range(20):
-        try:
-            model = Inpainting.from_cat_id(i)
-            result_images[i] = model.predict(raw_image)
-        except Exception as err:
-            logger.exception(f'cat_id {i} not found')
-            continue
+    display_cat_id_map()
+
+    g = dramatiq.group([
+        model.predict.send(raw_image)
+        for model in model_list
+    ]).run()
+
+    for i, result_image in enumerate(g.get_results(block=True, timeout=20000)):
+        # try:
+        #     model = Inpainting.from_cat_id(i)
+        #     result_images[i] = model.predict(raw_image)
+        # except Exception as err:
+        #     logger.exception(f'cat_id {i} not found')
+        #     continue
+        result_images[i] = result_image
 
         print(f'{i} {cat_id_to_cat_map[i]}')
         display_image_BGR(result_images[i])
