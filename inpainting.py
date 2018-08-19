@@ -12,7 +12,7 @@ import numpy as np
 import requests
 import skimage.io as ski_io
 import tensorflow as tf
-from carriage import Row, StreamTable
+from carriage import Row, StreamTable, X
 from matplotlib import pyplot as plt
 from matplotlib.font_manager import FontProperties
 
@@ -309,28 +309,34 @@ model_list = [m0, m1, m2, m3, m4, m5, m6, m7, m8, m9, m10,
 
 # def answer_question(question_id):
 
+for i in range(20):
+    Inpainting.from_cat_id(i)
 
-def answer_question(raw_image):
-    # quiz = get_image(question_id)
-    # print('題號：', quiz.question_id)
-    # print('文字描述：', quiz.description)
-    # print('Bounding Box:', quiz.bbox)
-    # print('影像物件：', type(quiz.raw_image), quiz.raw_image.dtype,
-    #       ', 影像大小：', quiz.raw_image.shape)
-    quiz = FoodQuiz(3, raw_image, (2, 2), 'blah balh')
+
+def answer_question_single(question_id):
+    quiz = get_image(question_id)
+    print('題號：', quiz.question_id)
+    print('文字描述：', quiz.description)
+    print('Bounding Box:', quiz.bbox)
+    print('影像物件：', type(quiz.raw_image), quiz.raw_image.dtype,
+          ', 影像大小：', quiz.raw_image.shape)
+    # quiz = FoodQuiz(3, raw_image, (2, 2), 'blah balh')
     display_image_RGB(quiz.raw_image)
 
     raw_image = convert_RGB_to_BGR(quiz.raw_image)
 
+    # labels, scores = mobile_net_clf(raw_image)
+    # label_scores = {label: score
+    #                 for label, score in
+    #                 sorted(zip(labels, scores), key=X[1], reverse=True)}
+
+    # print(label_scores)
+
     display_cat_id_map()
 
-    g = dramatiq.group([
-        model.predict.send(raw_image)
-        for model in model_list
-    ]).run()
-    result_images = {i: result_image
-                     for i, result_image in
-                     enumerate(g.get_results(block=True, timeout=30000))}
+    result_images = {
+        i: Inpainting.from_cat_id(i).predict(raw_image)
+        for i in range(20)}
 
     # for i, result_image in enumerate(g.get_results(block=True, timeout=20000)):
     # try:
@@ -352,7 +358,65 @@ def answer_question(raw_image):
     display('final choice')
     display_image_RGB(result_image)
 
-    # return submit_image(result_image, question_id)
+    return submit_image(result_image, question_id)
+
+
+def answer_question(question_id):
+    quiz = get_image(question_id)
+    print('題號：', quiz.question_id)
+    print('文字描述：', quiz.description)
+    print('Bounding Box:', quiz.bbox)
+    print('影像物件：', type(quiz.raw_image), quiz.raw_image.dtype,
+          ', 影像大小：', quiz.raw_image.shape)
+    # quiz = FoodQuiz(3, raw_image, (2, 2), 'blah balh')
+    display_image_RGB(quiz.raw_image)
+
+    raw_image = convert_RGB_to_BGR(quiz.raw_image)
+
+    # labels, scores = mobile_net_clf(raw_image)
+    # label_scores = {label: score
+    #                 for label, score in
+    #                 sorted(zip(labels, scores), key=X[1], reverse=True)}
+
+    # print(label_scores)
+
+    display_cat_id_map()
+
+    result_images = {}
+    for b in range(4):
+        print(5*b, 5*(b+1))
+        g = dramatiq.group([
+            model.predict.send(raw_image)
+            for model in model_list[5*b:5*(b+1)]
+        ]).run()
+
+        for i, result_image in enumerate(
+                g.get_results(block=True, timeout=50000)):
+            cat_id = b*5 + i
+            print(cat_id)
+            result_images[cat_id] = result_image
+
+    # for i, result_image in enumerate(g.get_results(block=True, timeout=20000)):
+    # try:
+    #     model = Inpainting.from_cat_id(i)
+    #     result_images[i] = model.predict(raw_image)
+    # except Exception as err:
+    #     logger.exception(f'cat_id {i} not found')
+    #     continue
+    # result_images[i] = result_image
+
+    # print(f'{i} {cat_id_to_cat_map[i]}')
+    # display_image_BGR(result_images[i])
+
+    display_grid_plot(result_images)
+
+    cat_id = int(input())
+
+    result_image = convert_BGR_to_RGB(result_images[cat_id])
+    display('final choice')
+    display_image_RGB(result_image)
+
+    return submit_image(result_image, question_id)
 
 
 def mobile_net_clf(raw_image):
@@ -360,7 +424,7 @@ def mobile_net_clf(raw_image):
     label_file = "mobile_net/tf_files/retrained_labels.txt"
     input_name = "import/input"
     output_name = "import/final_result"
-    top = 5
+
     graph = load_graph(model_file)
 
     input_operation = graph.get_operation_by_name(input_name)
