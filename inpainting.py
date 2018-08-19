@@ -14,6 +14,7 @@ import skimage.io as ski_io
 import tensorflow as tf
 from carriage import Row, StreamTable
 from matplotlib import pyplot as plt
+from matplotlib.font_manager import FontProperties
 
 from inpaint_model import InpaintCAModel
 from IPython.display import display
@@ -32,18 +33,25 @@ def display_grid_plot(image_dict):
     nr = 5
     nc = 4
     id_list = []
+    ChineseFont1 = FontProperties(
+        fname='/usr/share/fonts/truetype/arphic/uming.ttc')
+
     for i in range(nc):
         for j in range(nr):
             id_list.append((i, j))
 
-    fig, axs = plt.subplots(nc, nr, figsize=(16,16))
+    fig, axs = plt.subplots(nc, nr, figsize=(16, 16))
     fig.suptitle('Multiple images')
     for i in range(len(image_dict)):
         ci, ri = id_list[i]
-        axs[ci, ri].imshow(image_dict[i])
-        axs[ci, ri].set_title(str(i))
+        image = image_dict[i]
+        image = convert_BGR_to_RGB(image)
+        axs[ci, ri].imshow(image)
+        axs[ci, ri].set_title(
+            f'{i} {cat_id_to_cat_map[i]}', fontproperties=ChineseFont1)
 
     plt.show()
+
 
 def display_image_BGR(image_bgr):
     image_rgb = convert_BGR_to_RGB(image_bgr)
@@ -94,6 +102,8 @@ cat_id_to_cat_map = {
     17: '冰淇淋',
     18: '薯條',
     19: '漢堡',
+
+
 }
 
 
@@ -311,25 +321,29 @@ def answer_question(raw_image):
 
     raw_image = convert_RGB_to_BGR(quiz.raw_image)
 
-    result_images = {}
     display_cat_id_map()
 
     g = dramatiq.group([
         model.predict.send(raw_image)
         for model in model_list
     ]).run()
+    result_images = {i: result_image
+                     for i, result_image in
+                     enumerate(g.get_results(block=True, timeout=30000))}
 
-    for i, result_image in enumerate(g.get_results(block=True, timeout=20000)):
-        # try:
-        #     model = Inpainting.from_cat_id(i)
-        #     result_images[i] = model.predict(raw_image)
-        # except Exception as err:
-        #     logger.exception(f'cat_id {i} not found')
-        #     continue
-        result_images[i] = result_image
+    # for i, result_image in enumerate(g.get_results(block=True, timeout=20000)):
+    # try:
+    #     model = Inpainting.from_cat_id(i)
+    #     result_images[i] = model.predict(raw_image)
+    # except Exception as err:
+    #     logger.exception(f'cat_id {i} not found')
+    #     continue
+    # result_images[i] = result_image
 
-        print(f'{i} {cat_id_to_cat_map[i]}')
-        display_image_BGR(result_images[i])
+    # print(f'{i} {cat_id_to_cat_map[i]}')
+    # display_image_BGR(result_images[i])
+
+    display_grid_plot(result_images)
 
     cat_id = int(input())
 
