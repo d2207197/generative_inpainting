@@ -1,10 +1,11 @@
 
 import base64
 import os
+import sys
 from io import BytesIO
 
 import numpy as np
-from carriage import Row, Stream, StreamTable
+from carriage import Row, StreamTable
 
 import attr
 import cv2
@@ -12,7 +13,6 @@ import requests
 import skimage.io as ski_io
 import tensorflow as tf
 from inpaint_model import InpaintCAModel
-from IPython.display import display
 from matplotlib import pyplot as plt
 
 output_p = "examples/output.png"
@@ -291,7 +291,6 @@ def answer_question(question_id):
 
 
 if __name__ == '__main__':
-    import sys
 
     print(f'loading {sys.argv[1]}')
     model = Inpainting.from_cat(sys.argv[1])
