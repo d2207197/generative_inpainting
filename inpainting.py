@@ -21,6 +21,23 @@ checkpoint_dir_p = "model_logs/coffee"
 model = InpaintCAModel()
 
 
+def display_grid_plot(image_dict):
+    nr = 5
+    nc = 4
+    id_list = []
+    for i in range(nc):
+        for j in range(nr):
+            id_list.append((i, j))
+
+    fig, axs = plt.subplots(nc, nr, figsize=(16,16))
+    fig.suptitle('Multiple images')
+    for i in range(len(image_dict)):
+        ci, ri = id_list[i]
+        axs[ci, ri].imshow(image_dict[i])
+        axs[ci, ri].set_title(str(i))
+
+    plt.show()
+
 def display_image_BRG(image_brg):
     image_rgb = convert_BGR_to_RGB(image_brg)
     return display_image_RGB(image_rgb)
