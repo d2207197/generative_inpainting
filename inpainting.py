@@ -3,13 +3,14 @@ import base64
 import os
 from io import BytesIO
 
+import numpy as np
+from carriage import Row, Stream, StreamTable
+
 import attr
 import cv2
-import numpy as np
 import requests
 import skimage.io as ski_io
 import tensorflow as tf
-from carriage import Row, Stream, StreamTable
 from inpaint_model import InpaintCAModel
 from IPython.display import display
 from matplotlib import pyplot as plt
@@ -76,7 +77,7 @@ def display_cat_id_map():
     cat_id_cat_stbl = StreamTable(
         [Row(cat_id=cat_id, cat=cat)
          for cat_id, cat in cat_id_to_cat_map.items()])
-    display(cat_id_cat_stbl)
+    cat_id_cat_stbl.show(len(cat_id_to_cat_map))
 
 
 cat_to_checkpoint_map = {
@@ -286,9 +287,7 @@ def answer_question(question_id):
     result_image = convert_BGR_to_RGB(result_image)
     display_image_RGB(result_image)
 
-    submit_image(result_image, question_id)
-
-    return
+    return submit_image(result_image, question_id)
 
 
 if __name__ == '__main__':
