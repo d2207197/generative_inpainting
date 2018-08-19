@@ -13,6 +13,6 @@ elif [ "$1" = "init" ]; then
     cp inpainting.py models/
     for i in {0..19..1}; do
         cat main_script_prefix.py > models/m$i.py
-        echo -e "\nfrom inpainting import Inpainting\n@dramatiq.actor(queue_name='m$i', store_results=True)\ndef predict(raw_image):\n\tprint('hi')\n\tmodel = Inpanting.from_cat_id($i)\n\treturn model.predict(raw_image)" >> models/m$i.py
+        echo -e "\nfrom inpainting import Inpainting\n@dramatiq.actor(queue_name='m$i', store_results=True)\ndef predict(raw_image):\n\traw_image = cv2.imread(raw_image)\n\tmodel = Inpanting.from_cat_id($i)\n\treturn model.predict(raw_image)" >> models/m$i.py
     done
 fi
